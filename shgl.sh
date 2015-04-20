@@ -329,27 +329,28 @@ for i in `cat $temp`; do
         echo '    }' >> $filename
     elif [ "$type" != "void" ]; then
         echo '    char encoded[30];' >> $filename
-        case $type in
-            GLint|GLsizei)
-                echo '    sprintf(encoded, "%i", ret);' >> $filename
-                ;;
-            GLuint|GLenum|GLbitfield)
-                echo '    sprintf(encoded, "%u", ret);' >> $filename
-                ;;
-            GLfloat|GLdouble|GLclampf|GLclampd)
-                echo '    sprintf(encoded, "%f", ret);' >> $filename
-                ;;
-            GLbyte|GLubyte|GLboolean)
-                echo '    sprintf(encoded, "%c", ret);' >> $filename
-                ;;
-            GLbyte\*|GLubyte\*)
-                echo '    sprintf(encoded, "%s", ret);' >> $filename
-                ;;
-            *)
-                echo "$type NOT HANDLED(2)"
-                ;;
-        esac
-        echo '    shgl_stream_write(strlen(encoded, encoded);' >> $filename
+        if echo $type | shglh_match '\*'; then
+            echo '    shgl_stream_write(strlen(ret), ret);' >> $filename
+        else
+            case $type in
+                GLint|GLsizei)
+                    echo '    sprintf(encoded, "%i", ret);' >> $filename
+                    ;;
+                GLuint|GLenum|GLbitfield)
+                    echo '    sprintf(encoded, "%u", ret);' >> $filename
+                    ;;
+                GLfloat|GLdouble|GLclampf|GLclampd)
+                    echo '    sprintf(encoded, "%f", ret);' >> $filename
+                    ;;
+                GLbyte|GLubyte|GLboolean)
+                    echo '    sprintf(encoded, "%c", ret);' >> $filename
+                    ;;
+                *)
+                    echo "$type NOT HANDLED(2)"
+                    ;;
+            esac
+            echo '    shgl_stream_write(strlen(encoded), encoded);' >> $filename
+        fi
     fi
 
     echo '}' >> $filename

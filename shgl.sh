@@ -108,46 +108,12 @@ shglh_casetype_read() {
     esac
 }
 
-
-clientfile=$SCRIPTDIR/gen/client.c
-
-echo 'void shgl_client_process(char** argv) {' > $clientfile
-echo '    if (0) {}' >> $clientfile
-
-
-serverfile=$SCRIPTDIR/gen/server.c
-
-echo 'void shgl_server_process() {' > $serverfile
-echo '    char* str = shgl_stream_read_str();' >> $serverfile
-echo '    if (0) {}' >> $serverfile
-
-
-##### Process macros #####
-
-
-for i in `grep '#define *GL_' /usr/include/GL/gl.h | awk '{print $2"-"$3}'`; do
-    macro=`echo $i | sed 's:\([^-]*\).*:\1:g'`
-    macronogl=`echo $i | sed 's:GL_\([^-]*\).*:\1:g'`
-
-    valueraw=`echo $i | sed 's:.*-\(.*\):\1:g'`
-    value=`printf '%i' $valueraw`
-
-    filename=$SCRIPTDIR/gen/macro/$macronogl
-    srcfilename=$SCRIPTDIR/src/macro/$macronogl
-
-
-    if [ ! -f $srcfilename ] && [ ! -f $filename ]; then
-        echo "int puts(const char*);" > $filename
-        echo "void shgl_macro_"$macronogl"() {" >> $filename
-        echo "    puts(\""$value"\");" >> $filename
-        echo "}" >> $filename
-    fi
-
-    echo '    else if (!strcmp(argv[0], "'$macronogl'")) shgl_macro_'$macronogl'();' >> $clientfile
-done
-
-
-##### Process functions #####
+shglh_show_progress() {
+    echo -en '\r'
+    echo -n $2
+    echo -n '/'
+    echo -n $1
+}
 
 
 temp=`mktemp`
@@ -190,6 +156,55 @@ semi == 1 && /);[ ]*$/ {
     sed 's:+);$::g' | # No useful reason for the end );
     grep -v '\*[^,(]*,' > $temp
 
+
+totalfunctions=`expr \`cat $temp | wc -l\` + \`cat /usr/include/GL/gl.h | grep '#define *GL_' | wc -l\``
+currentfunction=0
+
+
+clientfile=$SCRIPTDIR/gen/client.c
+
+echo 'void shgl_client_process(char** argv) {' > $clientfile
+echo '    if (0) {}' >> $clientfile
+
+
+serverfile=$SCRIPTDIR/gen/server.c
+
+echo 'void shgl_server_process() {' > $serverfile
+echo '    char* str = shgl_stream_read_str();' >> $serverfile
+echo '    if (0) {}' >> $serverfile
+
+
+##### Process macros #####
+
+
+for i in `grep '#define *GL_' /usr/include/GL/gl.h | awk '{print $2"-"$3}'`; do
+    macro=`echo $i | sed 's:\([^-]*\).*:\1:g'`
+    macronogl=`echo $i | sed 's:GL_\([^-]*\).*:\1:g'`
+
+    valueraw=`echo $i | sed 's:.*-\(.*\):\1:g'`
+    value=`printf '%i' $valueraw`
+
+    filename=$SCRIPTDIR/gen/macro/$macronogl
+    srcfilename=$SCRIPTDIR/src/macro/$macronogl
+
+
+    if [ ! -f $srcfilename ] && [ ! -f $filename ]; then
+        echo "int puts(const char*);" > $filename
+        echo "void shgl_macro_"$macronogl"() {" >> $filename
+        echo "    puts(\""$value"\");" >> $filename
+        echo "}" >> $filename
+    fi
+
+    echo '    else if (!strcmp(argv[0], "'$macronogl'")) shgl_macro_'$macronogl'();' >> $clientfile
+
+    currentfunction=`expr $currentfunction + 1`
+    shglh_show_progress $totalfunctions $currentfunction
+done
+
+
+##### Process functions #####
+
+
 for i in `cat $temp`; do
     type=`echo $i | cut -d '+' -f 1`
     name=`echo $i | cut -d '+' -f 2`
@@ -199,7 +214,7 @@ for i in `cat $temp`; do
     filename=$SCRIPTDIR/gen/function/$namenogl
     srcfilename=$SCRIPTDIR/src/function/$namenogl
 
-    echo "$type $name($args);"
+    #echo "$type $name($args);"
 
 
     ### Client ###
@@ -379,6 +394,10 @@ for i in `cat $temp`; do
 
 
     echo '    else if (!strcmp(str, "'$namenogl'")) shgl_function_server_'$namenogl'();' >> $serverfile
+
+
+    currentfunction=`expr $currentfunction + 1`
+    shglh_show_progress $totalfunctions $currentfunction
 done
 
 rm -f $temp
@@ -388,3 +407,7 @@ echo '}' >> $clientfile
 
 echo '    else printf("Unknown function: %s\n", str);' >> $serverfile
 echo '}' >> $serverfile
+
+echo -en '\r'
+echo -n '                     '
+echo -en '\r'

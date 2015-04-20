@@ -328,10 +328,10 @@ for i in `cat $temp`; do
         echo '        shgl_stream_write(strlen(encoded), encoded);' >> $filename
         echo '    }' >> $filename
     elif [ "$type" != "void" ]; then
-        echo '    char encoded[30];' >> $filename
         if echo $type | shglh_match '\*'; then
             echo '    shgl_stream_write(strlen(ret), ret);' >> $filename
         else
+            echo '    char encoded[30];' >> $filename
             case $type in
                 GLint|GLsizei)
                     echo '    sprintf(encoded, "%i", ret);' >> $filename

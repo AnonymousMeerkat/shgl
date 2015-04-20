@@ -108,8 +108,22 @@ shglh_casetype_read() {
     esac
 }
 
-#cat /usr/include/GL/gl.h | grep -v -e '^#' -e 'v(' | grep -v -e 'ARB' -e 'OES' -e 'ATI' -e 'MESA' -e 'EXT' | awk 'BEGIN{semi=0}/GLAPI.*;.*$/{print}/GLAPI[^)]*$/{printf $0;semi=1;next}semi==1{printf $0}semi==1&&/);[ ]*$/{printf "\n";semi=0}' | sed 's:GLAPI \([^ ]*\) GLAPIENTRY \([^(]*\)( \(.*\):\1 \2 ( \3:g' | sed 's:\t: :g' | sed 's:  *: :g'
-#exit
+
+clientfile=$SCRIPTDIR/gen/client.c
+
+echo 'void shgl_client_process(char** argv) {' > $clientfile
+echo '    if (0) {}' >> $clientfile
+
+
+serverfile=$SCRIPTDIR/gen/server.c
+
+echo 'void shgl_server_process() {' > $serverfile
+echo '    char* str = shgl_stream_read_str();' >> $serverfile
+echo '    if (0) {}' >> $serverfile
+
+
+##### Process macros #####
+
 
 for i in `grep '#define *GL_' /usr/include/GL/gl.h | awk '{print $2"-"$3}'`; do
     macro=`echo $i | sed 's:\([^-]*\).*:\1:g'`
@@ -128,7 +142,12 @@ for i in `grep '#define *GL_' /usr/include/GL/gl.h | awk '{print $2"-"$3}'`; do
         echo "    puts(\""$value"\");" >> $filename
         echo "}" >> $filename
     fi
+
+    echo '    else if (!strcmp(argv[0], "'$macronogl'")) shgl_macro_'$macronogl'();' >> $clientfile
 done
+
+
+##### Process functions #####
 
 
 temp=`mktemp`
@@ -182,11 +201,9 @@ for i in `cat $temp`; do
 
     echo "$type $name($args);"
 
-    # If there is already a source file (e.g. special cases like glGenBuffers), don't make a file
-    # if not, create it. parse the arguments, send "blah\0encodedarg1encodedarg2" via socket.
-    # wait for reply if non-void and turn into char*
 
-    ### Client
+    ### Client ###
+
 
     outtype="void"
     if [ "$type" != "void" ]; then
@@ -249,7 +266,12 @@ for i in `cat $temp`; do
 
     echo '}' >> $filename
 
-    ### Server
+
+    echo '    else if (!strcmp(argv[0], "'$namenogl'")) shgl_function_'$namenogl'(argv+1);' >> $clientfile
+
+
+    ### Server ###
+
 
     echo 'void shgl_function_server_'$namenogl'() {' >> $filename
 
@@ -354,6 +376,15 @@ for i in `cat $temp`; do
     fi
 
     echo '}' >> $filename
+
+
+    echo '    else if (!strcmp(str, "'$namenogl'")) shgl_function_server_'$namenogl'();' >> $serverfile
 done
 
 rm -f $temp
+
+echo '    else printf("Unknown function: %s\n", argv[0]);' >> $clientfile
+echo '}' >> $clientfile
+
+echo '    else printf("Unknown function: %s\n", str);' >> $serverfile
+echo '}' >> $serverfile
